@@ -1,8 +1,6 @@
-from flask import Flask, request, jsonify
+import json
 import requests
 import os
-
-app = Flask(__name__)
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -29,21 +27,56 @@ def send_to_telegram(name, contact, message):
         return False
 
 
-@app.route("/api/contact", methods=["POST"])
-def contact():
-    data = request.get_json(silent=True) or {}
-    name = data.get("name", "").strip() if data.get("name") else ""
-    contact_info = data.get("contact", "").strip() if data.get("contact") else ""
-    message = data.get("message", "").strip() if data.get("message") else ""
+def handler(request):
+    if request.method == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+            },
+        }
 
-    if not name or not contact_info:
-        return jsonify({"success": False, "message": "Заполните обязательные поля"})
+    if request.method == "POST" and request.uri == "/api/contact":
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except:
+            data = {}
 
-    if send_to_telegram(name, contact_info, message):
-        return jsonify({"success": True, "message": "Заявка отправлена!"})
-    else:
-        return jsonify({"success": False, "message": "Ошибка отправки"})
+        name = data.get("name", "").strip() if data.get("name") else ""
+        contact_info = data.get("contact", "").strip() if data.get("contact") else ""
+        message = data.get("message", "").strip() if data.get("message") else ""
 
+        if not name or not contact_info:
+            return {
+                "statusCode": 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                },
+                "body": json.dumps(
+                    {"success": False, "message": "Заполните обязательные поля"}
+                ),
+            }
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+        if send_to_telegram(name, contact_info, message):
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                },
+                "body": json.dumps({"success": True, "message": "Заявка отправлена!"}),
+            }
+        else:
+            return {
+                "statusCode": 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": "*",
+                },
+                "body": json.dumps({"success": False, "message": "Ошибка отправки"}),
+            }
+
+    return {"statusCode": 404, "body": "Not Found"}
